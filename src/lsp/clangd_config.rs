@@ -7,6 +7,21 @@ pub struct ClangdConfigInput {
     pub compile_database_path: Option<String>,
 }
 
+/// 格式化YAML字符串值，如果包含空格则用引号包围。
+///
+/// 注意：Windows路径中的冒号（如C:）在YAML值中不需要引号，
+/// 除非路径中还有空格或其他需要转义的字符。
+fn format_yaml_value(value: &str) -> String {
+    // 只在包含空格时加引号
+    // 双引号需要转义，反斜杠转换为正斜杠
+    if value.contains(' ') || value.contains('"') {
+        let normalized = value.replace('\\', "/").replace('"', "\\\"");
+        format!("\"{}\"", normalized)
+    } else {
+        value.replace('\\', "/")
+    }
+}
+
 pub fn render_clangd_config(input: &ClangdConfigInput) -> String {
     let mut output = String::new();
     output.push_str("# 由 Zed MSVC C++ Assistant 自动生成。\n");
@@ -19,7 +34,7 @@ pub fn render_clangd_config(input: &ClangdConfigInput) -> String {
         output.push_str("CompileFlags:\n");
         output.push_str(&format!(
             "  CompilationDatabase: {}\n",
-            db_path.replace('\\', "/")
+            format_yaml_value(db_path)
         ));
         output.push_str("  # 编译数据库包含完整 include 路径，以下仅作为备用。\n");
         output.push_str("  DriverMode: cl\n");
@@ -116,5 +131,28 @@ mod tests {
 
         assert!(!rendered.contains("CompilationDatabase:"));
         assert!(!rendered.contains("检测到 compile_commands.json"));
+    }
+
+    #[test]
+    fn quotes_path_with_spaces() {
+        let rendered = render_clangd_config(&ClangdConfigInput {
+            msvc_include: r"C:\VS\VC\Tools\MSVC\14.40.33807\include".to_string(),
+            sdk_includes: Vec::new(),
+            compile_database_path: Some(r"C:\My Project\build output".to_string()),
+        });
+
+        assert!(rendered.contains("CompilationDatabase: \"C:/My Project/build output\""));
+    }
+
+    #[test]
+    fn does_not_quote_path_without_spaces() {
+        let rendered = render_clangd_config(&ClangdConfigInput {
+            msvc_include: r"C:\VS\VC\Tools\MSVC\14.40.33807\include".to_string(),
+            sdk_includes: Vec::new(),
+            compile_database_path: Some(r"C:\project\build".to_string()),
+        });
+
+        assert!(rendered.contains("CompilationDatabase: C:/project/build"));
+        assert!(!rendered.contains("CompilationDatabase: \"C:/project/build\""));
     }
 }

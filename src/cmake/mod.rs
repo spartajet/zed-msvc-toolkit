@@ -4,4 +4,6 @@
 
 pub mod compile_db;
 
-pub use compile_db::{discover_compile_database, has_cmake_lists};
+pub use compile_db::discover_compile_database;
+#[allow(dead_code)]
+pub use compile_db::has_cmake_lists;

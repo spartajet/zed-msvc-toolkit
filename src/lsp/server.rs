@@ -178,4 +178,125 @@ mod tests {
             other => panic!("expected MissingWorkspaceConfig, got {other:?}"),
         }
     }
+
+    #[test]
+    fn includes_compilation_database_when_present_in_root() {
+        // 这个测试需要实际文件系统，创建临时目录
+        use std::fs;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let test_id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+
+        let temp_dir = std::env::temp_dir()
+            .join(format!("zed-msvc-integration-root-{}-{}", std::process::id(), test_id));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // 创建 compile_commands.json
+        fs::write(
+            temp_dir.join("compile_commands.json"),
+            r#"[]"#,
+        ).unwrap();
+
+        let runner = QueueRunner::new([
+            CommandOutput {
+                status: Some(0),
+                stdout: "C:\\VS\\2022\\Community\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: "14.40.33807\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: "10.0.22621.0\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: "ucrt\num\nshared\n".to_string(),
+                stderr: String::new(),
+            },
+        ]);
+
+        let error = prepare_workspace_config(
+            temp_dir.to_str().expect("temp path should be valid UTF-8"),
+            None,
+            &runner,
+        ).unwrap_err();
+
+        match error {
+            ToolkitError::MissingWorkspaceConfig(contents) => {
+                assert!(contents.contains("CompilationDatabase:"));
+                assert!(contents.contains("检测到 compile_commands.json"));
+            }
+            other => panic!("expected MissingWorkspaceConfig, got {other:?}"),
+        }
+
+        // 清理
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn includes_compilation_database_when_present_in_build_subdirectory() {
+        use std::fs;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static TEST_COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let test_id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+
+        let temp_dir = std::env::temp_dir()
+            .join(format!("zed-msvc-integration-build-{}-{}", std::process::id(), test_id));
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // 创建 build 子目录和 compile_commands.json
+        let build_dir = temp_dir.join("build");
+        fs::create_dir_all(&build_dir).unwrap();
+        fs::write(
+            build_dir.join("compile_commands.json"),
+            r#"[]"#,
+        ).unwrap();
+
+        let runner = QueueRunner::new([
+            CommandOutput {
+                status: Some(0),
+                stdout: "C:\\VS\\2022\\Community\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: "14.40.33807\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: "10.0.22621.0\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: "ucrt\num\nshared\n".to_string(),
+                stderr: String::new(),
+            },
+        ]);
+
+        let error = prepare_workspace_config(
+            temp_dir.to_str().expect("temp path should be valid UTF-8"),
+            None,
+            &runner,
+        ).unwrap_err();
+
+        match error {
+            ToolkitError::MissingWorkspaceConfig(contents) => {
+                assert!(contents.contains("CompilationDatabase:"));
+                assert!(contents.contains("/build"));
+            }
+            other => panic!("expected MissingWorkspaceConfig, got {other:?}"),
+        }
+
+        // 清理
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }
