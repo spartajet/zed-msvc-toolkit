@@ -2,6 +2,7 @@ use crate::cmake::discover_compile_database;
 use crate::debug::log_message;
 use crate::environment::discover_msvc_environment;
 use crate::environment::tools::{ZedCommandRunner, require_clangd};
+use crate::environment::vswhere::discover_visual_studio;
 use crate::error::{ToolkitError, ToolkitResult};
 use crate::lsp::clangd_config::ClangdConfigInput;
 use crate::lsp::workspace_config::{ClangdFileDecision, decide_clangd_file};
@@ -137,6 +138,9 @@ fn ensure_compile_database(
         crate::debug::log_error("CMake configure failed", &error);
         return None;
     }
+    if let Err(error) = run_cmake_autogen_targets(root_path, runner) {
+        crate::debug::log_error("CMake autogen target failed", &error);
+    }
 
     let discovered = discover_compile_database_from_host(root_path, runner);
     match &discovered {
@@ -198,22 +202,81 @@ fn run_cmake_configure_for_compile_database(
     root_path: &str,
     runner: &impl crate::environment::tools::CommandRunner,
 ) -> ToolkitResult<()> {
-    let build_dir = format!(
-        "{}\\build",
-        root_path.trim_end_matches(['\\', '/'].as_slice())
-    );
-    let args = vec![
+    let visual_studio_root = discover_visual_studio(runner)?;
+    let vs_dev_cmd = join_windows_path(&visual_studio_root, r"Common7\Tools\VsDevCmd.bat");
+    let build_dir = join_windows_path(root_path, "build");
+    let cmake_args = vec![
         "-S".to_string(),
         root_path.to_string(),
         "-B".to_string(),
-        build_dir,
+        build_dir.clone(),
         "-G".to_string(),
         "Ninja".to_string(),
+        "-DCMAKE_C_COMPILER=cl".to_string(),
+        "-DCMAKE_CXX_COMPILER=cl".to_string(),
         "-DCMAKE_BUILD_TYPE=Debug".to_string(),
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON".to_string(),
     ];
+    let cmake_command = format!(
+        "cmake {}",
+        cmake_args
+            .iter()
+            .map(|arg| cmd_quote(arg))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    let cmd_line = format!(
+        "call {} -arch=x64 -host_arch=x64 && {cmake_command}",
+        cmd_quote(&vs_dev_cmd)
+    );
+    let script = format!(
+        "$ErrorActionPreference='Stop'; & cmd.exe /S /C {}",
+        powershell_single_quote(&cmd_line)
+    );
+    log_message(&format!(
+        "running CMake configure through VS developer environment: {cmake_command}"
+    ));
+    let args = vec!["-NoProfile".to_string(), "-Command".to_string(), script];
+    let output = runner.run_command("powershell", &args)?;
+    crate::environment::tools::ensure_success("powershell", output).map(|_| ())
+}
+
+fn run_cmake_autogen_targets(
+    root_path: &str,
+    runner: &impl crate::environment::tools::CommandRunner,
+) -> ToolkitResult<()> {
+    let Some(target) = first_autogen_target(root_path, runner)? else {
+        log_message("no CMake *_autogen target found; skipping Qt autogen");
+        return Ok(());
+    };
+
+    let build_dir = join_windows_path(root_path, "build");
+    let args = vec![
+        "--build".to_string(),
+        build_dir,
+        "--target".to_string(),
+        target.clone(),
+    ];
+    log_message(&format!("running CMake autogen target: {target}"));
     let output = runner.run_command("cmake", &args)?;
     crate::environment::tools::ensure_success("cmake", output).map(|_| ())
+}
+
+fn first_autogen_target(
+    root_path: &str,
+    runner: &impl crate::environment::tools::CommandRunner,
+) -> ToolkitResult<Option<String>> {
+    let build_ninja = join_windows_path(&join_windows_path(root_path, "build"), "build.ninja");
+    let escaped_path = powershell_single_quote(&build_ninja);
+    let script = format!(
+        "$ErrorActionPreference='Stop'; if (!(Test-Path -LiteralPath {escaped_path})) {{ return }}; \
+         Select-String -LiteralPath {escaped_path} -Pattern '^build ([^: ]+_autogen): phony' | \
+         ForEach-Object {{ $_.Matches[0].Groups[1].Value }} | Select-Object -First 1"
+    );
+    let args = vec!["-NoProfile".to_string(), "-Command".to_string(), script];
+    let output = runner.run_command("powershell", &args)?;
+    let stdout = crate::environment::tools::ensure_success("powershell", output)?;
+    Ok(stdout.lines().map(str::trim).find(|line| !line.is_empty()).map(ToOwned::to_owned))
 }
 
 pub fn prepare_workspace_config_from_worktree(worktree: &zed::Worktree) -> ToolkitResult<()> {
@@ -246,6 +309,10 @@ fn write_clangd_file(
 
 fn powershell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
+}
+
+fn cmd_quote(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\"\""))
 }
 
 fn one_line_preview(contents: &str) -> String {
@@ -440,6 +507,21 @@ mod tests {
             },
             CommandOutput {
                 status: Some(0),
+                stdout: "C:\\VS\\2022\\Community\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
+                stdout: "test_autogen\n".to_string(),
+                stderr: String::new(),
+            },
+            CommandOutput {
+                status: Some(0),
                 stdout: String::new(),
                 stderr: String::new(),
             },
@@ -488,12 +570,17 @@ mod tests {
 
         assert_eq!(result, Ok(()));
         assert!(runner.calls.borrow().iter().any(|(command, args)| {
-            command == "cmake"
-                && args.iter().any(|arg| arg == "-G")
-                && args.iter().any(|arg| arg == "Ninja")
+            command == "powershell"
                 && args
                     .iter()
-                    .any(|arg| arg == "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
+                    .any(|arg| arg.contains("VsDevCmd.bat")
+                        && arg.contains("-DCMAKE_CXX_COMPILER=cl")
+                        && arg.contains("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"))
+        }));
+        assert!(runner.calls.borrow().iter().any(|(command, args)| {
+            command == "cmake"
+                && args.iter().any(|arg| arg == "--target")
+                && args.iter().any(|arg| arg == "test_autogen")
         }));
 
         let _ = fs::remove_dir_all(&temp_dir);

@@ -31,19 +31,20 @@ pub fn render_clangd_config(input: &ClangdConfigInput) -> String {
     // 如果有编译数据库，优先使用
     if let Some(db_path) = &input.compile_database_path {
         output.push_str("# 检测到 compile_commands.json，使用编译数据库。\n");
+        output.push_str("# CMake 解析出的 include、宏定义和编译选项会从 compile_commands.json 读取。\n");
+        output.push_str("# MSVC/Windows SDK include 作为 clangd 脱离 VS Developer 环境运行时的备用路径。\n");
         output.push_str("CompileFlags:\n");
         output.push_str(&format!(
             "  CompilationDatabase: {}\n",
             format_yaml_value(db_path)
         ));
-        output.push_str("  # 编译数据库包含完整 include 路径，以下仅作为备用。\n");
-        output.push_str("  Compiler: clang-cl\n");
+        output.push_str("  Add:\n");
     } else {
         output.push_str("CompileFlags:\n");
         output.push_str("  Compiler: clang-cl\n");
+        output.push_str("  Add:\n");
     }
 
-    output.push_str("  Add:\n");
     output.push_str(&format!(
         "    - {}\n",
         clangd_include_arg(&input.msvc_include)
@@ -118,8 +119,12 @@ mod tests {
         });
 
         assert!(rendered.contains("检测到 compile_commands.json，使用编译数据库"));
+        assert!(rendered.contains("CMake 解析出的 include、宏定义和编译选项"));
+        assert!(rendered.contains("MSVC/Windows SDK include"));
         assert!(rendered.contains("CompilationDatabase: C:/project/build"));
-        assert!(rendered.contains("编译数据库包含完整 include 路径，以下仅作为备用"));
+        assert!(!rendered.contains("Compiler: clang-cl"));
+        assert!(rendered.contains("Add:"));
+        assert!(rendered.contains("/IC:/VS/VC/Tools/MSVC"));
     }
 
     #[test]
