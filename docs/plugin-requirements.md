@@ -113,3 +113,13 @@ Diagnostics:
 - **V0.1 (MVP)**: 实现 `vswhere` 探测与 `.clangd` 自动生成，打通 MSVC 环境下的 `clangd` 智能提示。
 - **V0.2**: 集成 `vsdbg`，实现基础的 PDB 调试（手动配置 `launch.json`）。
 - **V1.0 (Release)**: 增加 CMake Configure/Build 的 Zed 命令绑定，实现根据 CMake 输出目录自动推测并启动调试（零配置调试）。完善错误处理与用户提示。
+
+---
+
+## V0.1 实施状态
+
+V0.1 的设计与实施计划已拆分到：
+
+- `docs/superpowers/specs/2026-05-20-zed-msvc-toolkit-design.md`
+- `docs/superpowers/plans/2026-05-20-v0-1-msvc-clangd.md`
+- `docs/v0.1-usage.md`
