@@ -20,10 +20,16 @@ pub fn discover_msvc_include(runner: &impl CommandRunner, vs_root: &str) -> Tool
         r"{vs_root}\VC\Tools\MSVC",
         vs_root = vs_root.trim_end_matches('\\')
     );
-    let versions = powershell_list_directory_names(runner, &tools_root)
-        .map_err(|_| ToolkitError::MissingMsvcToolset)?;
-    select_msvc_include(versions.iter().map(String::as_str), vs_root)
-        .ok_or(ToolkitError::MissingMsvcToolset)
+    crate::debug::log_message(&format!("discovering MSVC toolsets under: {tools_root}"));
+    let versions = powershell_list_directory_names(runner, &tools_root).map_err(|error| {
+        crate::debug::log_error("MSVC toolset directory listing failed", &error);
+        ToolkitError::MissingMsvcToolset
+    })?;
+    crate::debug::log_message(&format!("MSVC toolset versions found: {versions:?}"));
+    let include = select_msvc_include(versions.iter().map(String::as_str), vs_root)
+        .ok_or(ToolkitError::MissingMsvcToolset)?;
+    crate::debug::log_message(&format!("MSVC include selected: {include}"));
+    Ok(include)
 }
 
 #[cfg(test)]
@@ -51,11 +57,7 @@ mod tests {
     struct FailingRunner;
 
     impl CommandRunner for FailingRunner {
-        fn run_command(
-            &self,
-            _command: &str,
-            _args: &[String],
-        ) -> ToolkitResult<CommandOutput> {
+        fn run_command(&self, _command: &str, _args: &[String]) -> ToolkitResult<CommandOutput> {
             Ok(CommandOutput {
                 status: Some(1),
                 stdout: String::new(),

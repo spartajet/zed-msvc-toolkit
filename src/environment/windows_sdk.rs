@@ -26,25 +26,45 @@ pub fn select_windows_sdk_includes<'a>(
 
 pub fn discover_windows_sdk_includes(runner: &impl CommandRunner) -> Vec<String> {
     let kits_include_root = r"C:\Program Files (x86)\Windows Kits\10\Include";
+    crate::debug::log_message(&format!(
+        "discovering Windows SDK includes under: {kits_include_root}"
+    ));
     match powershell_list_directory_names(runner, kits_include_root) {
         Ok(versions) => {
+            crate::debug::log_message(&format!("Windows SDK versions found: {versions:?}"));
             let Some(version) = highest_version_dir(versions.iter().map(String::as_str)) else {
+                crate::debug::log_message("no Windows SDK version directory selected");
                 return Vec::new();
             };
             let version_root = format!(r"{kits_include_root}\{version}");
             let Ok(children) = powershell_list_directory_names(runner, &version_root) else {
+                crate::debug::log_message(&format!(
+                    "failed to list selected Windows SDK directory: {version_root}"
+                ));
                 return Vec::new();
             };
-            if SDK_INCLUDE_KINDS
-                .iter()
-                .all(|kind| children.iter().any(|child| child.eq_ignore_ascii_case(kind)))
-            {
-                select_windows_sdk_includes([version], kits_include_root)
+            crate::debug::log_message(&format!(
+                "Windows SDK include children for {version}: {children:?}"
+            ));
+            if SDK_INCLUDE_KINDS.iter().all(|kind| {
+                children
+                    .iter()
+                    .any(|child| child.eq_ignore_ascii_case(kind))
+            }) {
+                let includes = select_windows_sdk_includes([version], kits_include_root);
+                crate::debug::log_message(&format!("Windows SDK includes selected: {includes:?}"));
+                includes
             } else {
+                crate::debug::log_message(
+                    "selected Windows SDK directory is missing ucrt/um/shared include folders",
+                );
                 Vec::new()
             }
         }
-        Err(_) => Vec::new(),
+        Err(error) => {
+            crate::debug::log_error("Windows SDK directory listing failed", &error);
+            Vec::new()
+        }
     }
 }
 
@@ -95,10 +115,9 @@ mod tests {
 
     impl CommandRunner for QueueRunner {
         fn run_command(&self, _command: &str, _args: &[String]) -> ToolkitResult<CommandOutput> {
-            self.outputs
-                .borrow_mut()
-                .pop_front()
-                .ok_or_else(|| crate::error::ToolkitError::IoMessage("unexpected command".to_string()))
+            self.outputs.borrow_mut().pop_front().ok_or_else(|| {
+                crate::error::ToolkitError::IoMessage("unexpected command".to_string())
+            })
         }
     }
 

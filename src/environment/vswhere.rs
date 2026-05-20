@@ -5,6 +5,7 @@ pub const VSWHERE_PATH: &str =
     r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe";
 
 pub fn discover_visual_studio(runner: &impl CommandRunner) -> ToolkitResult<String> {
+    crate::debug::log_message("discovering Visual Studio with vswhere");
     let args = vec![
         "-latest".to_string(),
         "-version".to_string(),
@@ -12,14 +13,20 @@ pub fn discover_visual_studio(runner: &impl CommandRunner) -> ToolkitResult<Stri
         "-property".to_string(),
         "installationPath".to_string(),
     ];
-    let output = runner
-        .run_command(VSWHERE_PATH, &args)
-        .map_err(|_| ToolkitError::MissingVswhere)?;
+    let output = runner.run_command(VSWHERE_PATH, &args).map_err(|error| {
+        crate::debug::log_error("vswhere execution failed", &error);
+        ToolkitError::MissingVswhere
+    })?;
     let stdout = ensure_success(VSWHERE_PATH, output).map_err(|error| match error {
-        ToolkitError::ProcessFailed { .. } => ToolkitError::MissingVisualStudio,
+        ToolkitError::ProcessFailed { .. } => {
+            crate::debug::log_error("vswhere did not find Visual Studio", &error);
+            ToolkitError::MissingVisualStudio
+        }
         other => other,
     })?;
-    parse_installation_path(&stdout).ok_or(ToolkitError::MissingVisualStudio)
+    let path = parse_installation_path(&stdout).ok_or(ToolkitError::MissingVisualStudio)?;
+    crate::debug::log_message(&format!("Visual Studio found: {path}"));
+    Ok(path)
 }
 
 pub fn parse_installation_path(stdout: &str) -> Option<String> {
@@ -93,7 +100,13 @@ mod tests {
         assert_eq!(calls[0].0, VSWHERE_PATH);
         assert_eq!(
             calls[0].1,
-            vec!["-latest", "-version", "[17.0,)", "-property", "installationPath"]
+            vec![
+                "-latest",
+                "-version",
+                "[17.0,)",
+                "-property",
+                "installationPath"
+            ]
         );
     }
 }

@@ -28,12 +28,22 @@ pub struct ZedCommandRunner;
 
 impl CommandRunner for ZedCommandRunner {
     fn run_command(&self, command: &str, args: &[String]) -> ToolkitResult<CommandOutput> {
+        crate::debug::log_message(&format!("running external command: {command} {args:?}"));
         let mut command = zed::Command {
             command: command.to_string(),
             args: args.to_vec(),
             env: Vec::new(),
         };
-        let output = command.output().map_err(ToolkitError::IoMessage)?;
+        let output = command.output().map_err(|message| {
+            crate::debug::log_message(&format!("external command spawn failed: {message}"));
+            ToolkitError::IoMessage(message)
+        })?;
+        crate::debug::log_message(&format!(
+            "external command finished: status={:?}, stdout_bytes={}, stderr_bytes={}",
+            output.status,
+            output.stdout.len(),
+            output.stderr.len()
+        ));
         Ok(CommandOutput {
             status: output.status,
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
@@ -44,8 +54,14 @@ impl CommandRunner for ZedCommandRunner {
 
 pub fn ensure_success(command: &str, output: CommandOutput) -> ToolkitResult<String> {
     if output.status == Some(0) {
+        crate::debug::log_message(&format!("{command} succeeded"));
         Ok(output.stdout)
     } else {
+        crate::debug::log_message(&format!(
+            "{command} failed: status={:?}, stderr={}",
+            output.status,
+            output.stderr.trim()
+        ));
         Err(ToolkitError::ProcessFailed {
             command: command.to_string(),
             status: output.status,
@@ -138,6 +154,9 @@ mod tests {
         assert_eq!(calls[0].0, "powershell");
         assert_eq!(calls[0].1[0], "-NoProfile");
         assert_eq!(calls[0].1[1], "-Command");
-        assert!(calls[0].1[2].contains("Get-ChildItem -LiteralPath 'C:\\Program Files\\SDK' -Directory"));
+        assert!(
+            calls[0].1[2]
+                .contains("Get-ChildItem -LiteralPath 'C:\\Program Files\\SDK' -Directory")
+        );
     }
 }

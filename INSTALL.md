@@ -51,7 +51,7 @@
 
 # 由 Zed MSVC C++ Assistant 自动生成。
 CompileFlags:
-  DriverMode: cl
+  Compiler: clang-cl
   Add:
     - /IC:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.40.33807/include
     - /IC:/Program Files (x86)/Windows Kits/10/Include/10.0.22621.0/ucrt

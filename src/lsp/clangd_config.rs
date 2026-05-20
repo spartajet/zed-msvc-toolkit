@@ -37,10 +37,10 @@ pub fn render_clangd_config(input: &ClangdConfigInput) -> String {
             format_yaml_value(db_path)
         ));
         output.push_str("  # 编译数据库包含完整 include 路径，以下仅作为备用。\n");
-        output.push_str("  DriverMode: cl\n");
+        output.push_str("  Compiler: clang-cl\n");
     } else {
         output.push_str("CompileFlags:\n");
-        output.push_str("  DriverMode: cl\n");
+        output.push_str("  Compiler: clang-cl\n");
     }
 
     output.push_str("  Add:\n");
@@ -84,7 +84,8 @@ mod tests {
             compile_database_path: None,
         });
 
-        assert!(rendered.contains("DriverMode: cl"));
+        assert!(rendered.contains("Compiler: clang-cl"));
+        assert!(!rendered.contains("DriverMode:"));
         assert!(rendered.contains("- /IC:/VS/VC/Tools/MSVC/14.40.33807/include"));
         assert!(rendered.contains("- /IC:/Windows Kits/10/Include/10.0.22621.0/ucrt"));
         assert!(rendered.contains("- /IC:/Windows Kits/10/Include/10.0.22621.0/um"));

@@ -45,7 +45,7 @@ mod tests {
         match decision {
             ClangdFileDecision::Create { path, contents } => {
                 assert_eq!(path, "C:/repo/.clangd");
-                assert!(contents.contains("DriverMode: cl"));
+                assert!(contents.contains("Compiler: clang-cl"));
             }
             ClangdFileDecision::PreserveExisting { .. } => panic!("expected create decision"),
         }

@@ -56,11 +56,8 @@ mod tests {
     {
         // 使用系统临时目录创建唯一的子目录
         let test_id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let temp_dir = std::env::temp_dir().join(format!(
-            "zed-msvc-test-{}-{}",
-            std::process::id(),
-            test_id
-        ));
+        let temp_dir =
+            std::env::temp_dir().join(format!("zed-msvc-test-{}-{}", std::process::id(), test_id));
         fs::create_dir_all(&temp_dir).unwrap();
 
         // 执行测试
@@ -127,7 +124,11 @@ mod tests {
     #[test]
     fn detects_cmake_project() {
         with_temp_dir(|root| {
-            fs::write(root.join("CMakeLists.txt"), "cmake_minimum_required(VERSION 3.10)").unwrap();
+            fs::write(
+                root.join("CMakeLists.txt"),
+                "cmake_minimum_required(VERSION 3.10)",
+            )
+            .unwrap();
 
             let root_str = root.to_str().expect("temp path should be valid UTF-8");
             assert!(has_cmake_lists(root_str));
@@ -157,9 +158,7 @@ mod tests {
         // 问题会在调用栈上游暴露。这里验证我们的函数
         // 不会因为路径内容而panic
         let test_path = "C:\\valid\\utf8\\path";
-        let result = std::panic::catch_unwind(|| {
-            discover_compile_database(test_path)
-        });
+        let result = std::panic::catch_unwind(|| discover_compile_database(test_path));
         assert!(result.is_ok());
     }
 }

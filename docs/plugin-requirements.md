@@ -42,7 +42,7 @@
 **FR2.1: 动态 `.clangd` 配置生成**
 - 当工作区中不存在 `.clangd` 文件时，插件自动在项目根目录生成 `.clangd` 文件。
 - 配置内容需包含：
-  - `CompileFlags.DriverMode: cl`：指示 clangd 使用 MSVC 兼容模式。
+  - `CompileFlags.Compiler: clang-cl`：指示 clangd 使用 clang-cl/MSVC 风格解释参数。
   - `CompileFlags.Add`：自动注入探测到的 MSVC 及 Windows SDK 的 `/I`（包含目录）参数。
 **FR2.2: CMake 编译数据库 协同**
 - **FR2.2.1**: 如果工作区根目录或 `build/` 目录下存在 `compile_commands.json`，`.clangd` 配置中需添加 `CompilationDatabase: <path>` 指向该文件。
@@ -97,7 +97,7 @@
 ```yaml
 # 由 Zed MSVC C++ Assistant 自动生成
 CompileFlags:
-  DriverMode: cl
+  Compiler: clang-cl
   Add:
     # MSVC 标准库
     - /IC:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.38.33130/include
