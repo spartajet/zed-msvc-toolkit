@@ -2,8 +2,19 @@
 //!
 //! V0.4 实现 .zed/tasks.json 生成，绕过 API 限制支持 CMake 命令。
 
-use crate::error::ToolkitResult;
+use crate::error::{ToolkitError, ToolkitResult};
 use serde_json::json;
+
+/// CMake 构建目标。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CmakeTarget {
+    /// CMake/Ninja 目标名。
+    pub name: String,
+    /// 目标输出文件，相对于构建目录。
+    pub output: Option<String>,
+    /// 是否是可执行文件目标。
+    pub executable: bool,
+}
 
 /// 任务配置选项。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,44 +23,45 @@ pub struct TaskOptions {
     pub build_dir: String,
     /// 构建类型
     pub build_type: String,
+    /// Visual Studio 开发者环境脚本路径。
+    pub vs_dev_cmd: Option<String>,
+    /// CMake 生成后的目标列表。
+    pub targets: Vec<CmakeTarget>,
 }
 
 /// 生成 Zed 任务文件内容。
 ///
-/// 返回的 JSON 包含 CMake configure 和 build 任务，
-/// 使用 $ZED_WORKTREE_ROOT 变量引用工作区根目录。
+/// 返回的 JSON 包含 CMake configure、build 和 run 任务，
+/// 使用 Zed 提供的 ZED_WORKTREE_ROOT 环境变量引用工作区根目录。
 pub fn generate_tasks_json(options: &TaskOptions) -> ToolkitResult<String> {
-    let build_dir_with_var = format!("$ZED_WORKTREE_ROOT/{}", options.build_dir);
+    let mut tasks = vec![
+        powershell_task(
+            format!("CMake: Configure ({})", options.build_type),
+            configure_script(options),
+        ),
+        powershell_task(
+            format!("CMake: Build ({})", options.build_type),
+            build_script(options, None),
+        ),
+    ];
 
-    let tasks = json!(
-        [
-            {
-                "label": format!("CMake: Configure ({})", options.build_type),
-                "command": "cmake",
-                "args": [
-                    "-S",
-                    "$ZED_WORKTREE_ROOT",
-                    "-B",
-                    &build_dir_with_var,
-                    "-DCMAKE_BUILD_TYPE=".to_string() + &options.build_type
-                ],
-                "env": {}
-            },
-            {
-                "label": format!("CMake: Build ({})", options.build_type),
-                "command": "cmake",
-                "args": [
-                    "--build",
-                    &build_dir_with_var,
-                    "--config",
-                    &options.build_type
-                ],
-                "env": {}
-            }
-        ]
-    );
+    for target in &options.targets {
+        tasks.push(powershell_task(
+            format!("CMake: Build Target: {}", target.name),
+            build_script(options, Some(&target.name)),
+        ));
+    }
 
-    Ok(tasks.to_string())
+    for target in options.targets.iter().filter(|target| target.executable) {
+        if let Some(output) = &target.output {
+            tasks.push(powershell_task(
+                format!("CMake: Run: {}", target.name),
+                run_script(options, output),
+            ));
+        }
+    }
+
+    serde_json::to_string_pretty(&tasks).map_err(|error| ToolkitError::IoMessage(error.to_string()))
 }
 
 /// 默认任务配置（Debug 构建）。
@@ -58,8 +70,79 @@ impl Default for TaskOptions {
         Self {
             build_dir: "build".to_string(),
             build_type: "Debug".to_string(),
+            vs_dev_cmd: None,
+            targets: Vec::new(),
         }
     }
+}
+
+fn powershell_task(label: String, script: String) -> serde_json::Value {
+    json!({
+        "label": label,
+        "command": "powershell",
+        "cwd": "$ZED_WORKTREE_ROOT",
+        "args": [
+            "-NoProfile",
+            "-Command",
+            script
+        ],
+        "env": {}
+    })
+}
+
+fn configure_script(options: &TaskOptions) -> String {
+    let cmake_command = format!(
+        "cmake -S \"%ZED_WORKTREE_ROOT%\" -B \"%ZED_WORKTREE_ROOT%\\{}\" -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE={} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        options.build_dir, options.build_type
+    );
+    developer_environment_script(options, &cmake_command)
+}
+
+fn build_script(options: &TaskOptions, target: Option<&str>) -> String {
+    let mut cmake_command = format!(
+        "cmake --build \"%ZED_WORKTREE_ROOT%\\{}\" --config {}",
+        options.build_dir, options.build_type
+    );
+
+    if let Some(target) = target {
+        cmake_command.push_str(" --target ");
+        cmake_command.push_str(&cmd_quote(target));
+    }
+
+    developer_environment_script(options, &cmake_command)
+}
+
+fn run_script(options: &TaskOptions, output: &str) -> String {
+    let output = output.replace('/', "\\");
+    format!(
+        "$ErrorActionPreference='Stop'; & (Join-Path $env:ZED_WORKTREE_ROOT '{}\\{}')",
+        options.build_dir.replace('\'', "''"),
+        output.replace('\'', "''")
+    )
+}
+
+fn developer_environment_script(options: &TaskOptions, command: &str) -> String {
+    let cmd_line = if let Some(vs_dev_cmd) = &options.vs_dev_cmd {
+        format!(
+            "call {} -arch=x64 -host_arch=x64 && {command}",
+            cmd_quote(vs_dev_cmd)
+        )
+    } else {
+        command.to_string()
+    };
+
+    format!(
+        "$ErrorActionPreference='Stop'; & cmd.exe /S /C {}",
+        powershell_single_quote(&cmd_line)
+    )
+}
+
+fn powershell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn cmd_quote(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\"\""))
 }
 
 #[cfg(test)]
@@ -93,19 +176,19 @@ mod tests {
         let json = generate_tasks_json(&options).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
-        // Configure 任务使用 $ZED_WORKTREE_ROOT
+        // Configure 任务使用 ZED_WORKTREE_ROOT
         let configure_args = parsed[0]["args"].as_array().unwrap();
         assert!(configure_args.iter().any(|arg| {
             arg.as_str()
-                .map(|s| s.contains("$ZED_WORKTREE_ROOT"))
+                .map(|s| s.contains("ZED_WORKTREE_ROOT"))
                 .unwrap_or(false)
         }));
 
-        // Build 任务使用 $ZED_WORKTREE_ROOT
+        // Build 任务使用 ZED_WORKTREE_ROOT
         let build_args = parsed[1]["args"].as_array().unwrap();
         assert!(build_args.iter().any(|arg| {
             arg.as_str()
-                .map(|s| s.contains("$ZED_WORKTREE_ROOT"))
+                .map(|s| s.contains("ZED_WORKTREE_ROOT"))
                 .unwrap_or(false)
         }));
     }
@@ -115,6 +198,8 @@ mod tests {
         let options = TaskOptions {
             build_dir: "cmake-build".to_string(),
             build_type: "Release".to_string(),
+            vs_dev_cmd: None,
+            targets: Vec::new(),
         };
         let json = generate_tasks_json(&options).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -133,6 +218,47 @@ mod tests {
                     .unwrap_or(false)
             })
             .unwrap();
-        assert_eq!(build_arg, "$ZED_WORKTREE_ROOT/cmake-build");
+        assert!(
+            build_arg
+                .as_str()
+                .unwrap()
+                .contains("%ZED_WORKTREE_ROOT%\\cmake-build")
+        );
+    }
+
+    #[test]
+    fn tasks_include_target_build_and_run() {
+        let options = TaskOptions {
+            targets: vec![CmakeTarget {
+                name: "app".to_string(),
+                output: Some("app.exe".to_string()),
+                executable: true,
+            }],
+            ..TaskOptions::default()
+        };
+        let json = generate_tasks_json(&options).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.as_array().unwrap().len(), 4);
+        assert_eq!(parsed[2]["label"], "CMake: Build Target: app");
+        assert_eq!(parsed[3]["label"], "CMake: Run: app");
+        assert!(parsed[3]["args"][2].as_str().unwrap().contains("app.exe"));
+    }
+
+    #[test]
+    fn tasks_use_visual_studio_developer_environment_when_available() {
+        let options = TaskOptions {
+            vs_dev_cmd: Some("C:\\VS\\Common7\\Tools\\VsDevCmd.bat".to_string()),
+            ..TaskOptions::default()
+        };
+        let json = generate_tasks_json(&options).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert!(
+            parsed[0]["args"][2]
+                .as_str()
+                .unwrap()
+                .contains("VsDevCmd.bat")
+        );
     }
 }

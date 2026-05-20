@@ -10,7 +10,7 @@ pub mod tools;
 pub use compile_db::discover_compile_database;
 #[allow(dead_code)]
 pub use compile_db::has_cmake_lists;
-pub use tasks::{TaskOptions, generate_tasks_json};
+pub use tasks::{CmakeTarget, TaskOptions, generate_tasks_json};
 pub use tools::{
     CmakeBuildType, CmakeConfigureOptions, CmakeGenerator, build_build_command,
     build_configure_command, discover_cmake, select_generator,

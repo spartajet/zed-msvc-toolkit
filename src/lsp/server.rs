@@ -1,4 +1,4 @@
-use crate::cmake::discover_compile_database;
+use crate::cmake::{CmakeTarget, TaskOptions, discover_compile_database, generate_tasks_json};
 use crate::debug::log_message;
 use crate::environment::discover_msvc_environment;
 use crate::environment::tools::{ZedCommandRunner, require_clangd};
@@ -6,6 +6,7 @@ use crate::environment::vswhere::discover_visual_studio;
 use crate::error::{ToolkitError, ToolkitResult};
 use crate::lsp::clangd_config::ClangdConfigInput;
 use crate::lsp::workspace_config::{ClangdFileDecision, decide_clangd_file};
+use std::collections::HashMap;
 use zed_extension_api as zed;
 
 pub const LANGUAGE_SERVER_ID: &str = "msvc-cpp-clangd";
@@ -79,7 +80,12 @@ pub fn prepare_workspace_config(
         }
     }
 
-    write_generated_clangd(root_path, compile_db_path, runner)
+    write_generated_clangd(root_path, compile_db_path, runner)?;
+    if let Err(error) = write_generated_tasks(root_path, runner) {
+        crate::debug::log_error("failed to write generated Zed tasks", &error);
+        log_message("continuing without blocking clangd startup");
+    }
+    Ok(())
 }
 
 fn write_generated_clangd(
@@ -262,6 +268,112 @@ fn run_cmake_autogen_targets(
     crate::environment::tools::ensure_success("cmake", output).map(|_| ())
 }
 
+fn write_generated_tasks(
+    root_path: &str,
+    runner: &impl crate::environment::tools::CommandRunner,
+) -> ToolkitResult<()> {
+    let visual_studio_root = discover_visual_studio(runner)?;
+    let vs_dev_cmd = join_windows_path(&visual_studio_root, r"Common7\Tools\VsDevCmd.bat");
+    let targets = discover_cmake_targets(root_path, runner)?;
+    log_message(&format!(
+        "discovered {} CMake target(s) for Zed tasks: {:?}",
+        targets.len(),
+        targets
+            .iter()
+            .map(|target| target.name.as_str())
+            .collect::<Vec<_>>()
+    ));
+
+    let options = TaskOptions {
+        build_dir: "build".to_string(),
+        build_type: "Debug".to_string(),
+        vs_dev_cmd: Some(vs_dev_cmd),
+        targets,
+    };
+    let contents = generate_tasks_json(&options)?;
+    log_message(&format!("generated .zed/tasks.json content:\n{contents}"));
+    write_tasks_file(root_path, &contents, runner)?;
+    log_message("wrote generated .zed/tasks.json to workspace");
+    Ok(())
+}
+
+fn discover_cmake_targets(
+    root_path: &str,
+    runner: &impl crate::environment::tools::CommandRunner,
+) -> ToolkitResult<Vec<CmakeTarget>> {
+    let build_ninja = join_windows_path(&join_windows_path(root_path, "build"), "build.ninja");
+    let escaped_path = powershell_single_quote(&build_ninja);
+    let script = format!(
+        "$ErrorActionPreference='Stop'; if (!(Test-Path -LiteralPath {escaped_path})) {{ return }}; \
+         $targets = @(); \
+         Get-Content -LiteralPath {escaped_path} | ForEach-Object {{ \
+             if ($_ -match '^build\\s+([^:]+?\\.exe):') {{ \
+                 $output = $Matches[1].Trim(); \
+                 if ($output -notmatch '(^|/)CMakeFiles/') {{ \
+                     $name = [IO.Path]::GetFileNameWithoutExtension($output); \
+                     $targets += \"$name|$output|exe\"; \
+                 }} \
+             }} elseif ($_ -match '^build\\s+([^: ]+): phony') {{ \
+                 $name = $Matches[1].Trim(); \
+                 if ($name -notmatch '(^all$|^clean$|^edit_cache$|^rebuild_cache$|_autogen$|_autogen_timestamp_deps$|_automoc_json_extraction$|^cmake_object_order_depends_target_)') {{ \
+                     $targets += \"$name||target\"; \
+                 }} \
+             }} \
+         }}; \
+         $targets | Sort-Object -Unique"
+    );
+    let args = vec!["-NoProfile".to_string(), "-Command".to_string(), script];
+    let output = runner.run_command("powershell", &args)?;
+    let stdout = crate::environment::tools::ensure_success("powershell", output)?;
+    Ok(dedupe_cmake_targets(
+        stdout
+            .lines()
+            .filter_map(parse_cmake_target_line)
+            .collect::<Vec<_>>(),
+    ))
+}
+
+fn parse_cmake_target_line(line: &str) -> Option<CmakeTarget> {
+    let mut parts = line.trim().splitn(3, '|');
+    let name = parts.next()?.trim();
+    let output = parts.next()?.trim();
+    let kind = parts.next()?.trim();
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+
+    let output = if output.is_empty() {
+        None
+    } else {
+        Some(output.to_string())
+    };
+
+    Some(CmakeTarget {
+        name: name.to_string(),
+        output,
+        executable: kind == "exe",
+    })
+}
+
+fn dedupe_cmake_targets(targets: Vec<CmakeTarget>) -> Vec<CmakeTarget> {
+    let mut by_name = HashMap::<String, CmakeTarget>::new();
+    for target in targets {
+        by_name
+            .entry(target.name.clone())
+            .and_modify(|existing| {
+                if target.executable && !existing.executable {
+                    *existing = target.clone();
+                }
+            })
+            .or_insert(target);
+    }
+
+    let mut targets = by_name.into_values().collect::<Vec<_>>();
+    targets.sort_by(|left, right| left.name.cmp(&right.name));
+    targets
+}
+
 fn first_autogen_target(
     root_path: &str,
     runner: &impl crate::environment::tools::CommandRunner,
@@ -276,7 +388,11 @@ fn first_autogen_target(
     let args = vec!["-NoProfile".to_string(), "-Command".to_string(), script];
     let output = runner.run_command("powershell", &args)?;
     let stdout = crate::environment::tools::ensure_success("powershell", output)?;
-    Ok(stdout.lines().map(str::trim).find(|line| !line.is_empty()).map(ToOwned::to_owned))
+    Ok(stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(ToOwned::to_owned))
 }
 
 pub fn prepare_workspace_config_from_worktree(worktree: &zed::Worktree) -> ToolkitResult<()> {
@@ -297,14 +413,37 @@ fn write_clangd_file(
         "{}\\.clangd",
         root_path.trim_end_matches(['\\', '/'].as_slice())
     );
-    let escaped_path = powershell_single_quote(&path);
-    let escaped_contents = powershell_single_quote(contents);
-    let script = format!(
-        "$ErrorActionPreference='Stop'; Set-Content -LiteralPath {escaped_path} -Encoding UTF8 -Value {escaped_contents}"
-    );
+    let script = write_text_file_script(&path, contents);
     let args = vec!["-NoProfile".to_string(), "-Command".to_string(), script];
     let output = runner.run_command("powershell", &args)?;
     crate::environment::tools::ensure_success("powershell", output).map(|_| ())
+}
+
+fn write_tasks_file(
+    root_path: &str,
+    contents: &str,
+    runner: &impl crate::environment::tools::CommandRunner,
+) -> ToolkitResult<()> {
+    let path = format!(
+        "{}\\.zed\\tasks.json",
+        root_path.trim_end_matches(['\\', '/'].as_slice())
+    );
+    let script = write_text_file_script(&path, contents);
+    let args = vec!["-NoProfile".to_string(), "-Command".to_string(), script];
+    let output = runner.run_command("powershell", &args)?;
+    crate::environment::tools::ensure_success("powershell", output).map(|_| ())
+}
+
+fn write_text_file_script(path: &str, contents: &str) -> String {
+    let escaped_path = powershell_single_quote(path);
+    let escaped_contents = powershell_single_quote(contents);
+    format!(
+        "$ErrorActionPreference='Stop'; $path = {escaped_path}; \
+         $dir = Split-Path -Parent $path; \
+         if ($dir) {{ New-Item -ItemType Directory -Force -Path $dir | Out-Null }}; \
+         $encoding = New-Object System.Text.UTF8Encoding($false); \
+         [System.IO.File]::WriteAllText($path, {escaped_contents}, $encoding)"
+    )
 }
 
 fn powershell_single_quote(value: &str) -> String {
@@ -464,9 +603,10 @@ mod tests {
         assert_eq!(result, Ok(()));
         assert!(runner.calls.borrow().iter().any(|(command, args)| {
             command == "powershell"
-                && args
-                    .iter()
-                    .any(|arg| arg.contains("Set-Content -LiteralPath 'C:/repo\\.clangd'"))
+                && args.iter().any(|arg| {
+                    arg.contains("[System.IO.File]::WriteAllText")
+                        && arg.contains("'C:/repo\\.clangd'")
+                })
         }));
     }
 
@@ -571,11 +711,11 @@ mod tests {
         assert_eq!(result, Ok(()));
         assert!(runner.calls.borrow().iter().any(|(command, args)| {
             command == "powershell"
-                && args
-                    .iter()
-                    .any(|arg| arg.contains("VsDevCmd.bat")
+                && args.iter().any(|arg| {
+                    arg.contains("VsDevCmd.bat")
                         && arg.contains("-DCMAKE_CXX_COMPILER=cl")
-                        && arg.contains("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"))
+                        && arg.contains("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
+                })
         }));
         assert!(runner.calls.borrow().iter().any(|(command, args)| {
             command == "cmake"
