@@ -27,12 +27,8 @@ mod tests {
 
     #[test]
     fn selects_highest_numeric_version() {
-        let selected = highest_version_dir([
-            "14.9.99999",
-            "14.38.33130",
-            "14.40.33807",
-            "14.10.25017",
-        ]);
+        let selected =
+            highest_version_dir(["14.9.99999", "14.38.33130", "14.40.33807", "14.10.25017"]);
 
         assert_eq!(selected, Some("14.40.33807"));
     }
