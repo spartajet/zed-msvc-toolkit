@@ -2,6 +2,8 @@ use zed_extension_api as zed;
 
 mod cmake;
 mod debug;
+mod error;
+mod paths;
 
 #[derive(Default)]
 struct MsvcToolkitExtension;

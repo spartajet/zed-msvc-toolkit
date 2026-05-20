@@ -1,0 +1,45 @@
+use std::fmt;
+
+pub type ToolkitResult<T> = Result<T, ToolkitError>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToolkitError {
+    UnsupportedLanguageServer(String),
+    MissingVswhere,
+    MissingVisualStudio,
+    MissingMsvcToolset,
+    MissingClangd,
+    IoMessage(String),
+}
+
+impl ToolkitError {
+    pub fn user_message(&self) -> String {
+        match self {
+            Self::UnsupportedLanguageServer(id) => {
+                format!("不支持的 language server: {id}")
+            }
+            Self::MissingVswhere => {
+                "找不到 vswhere.exe。请确认已安装 Visual Studio Installer 和 Visual Studio 2022+。"
+                    .to_string()
+            }
+            Self::MissingVisualStudio => {
+                "找不到 Visual Studio 2022+。请安装 Visual Studio 2022 或更新版本，并包含“使用 C++ 的桌面开发”工作负载。"
+                    .to_string()
+            }
+            Self::MissingMsvcToolset => {
+                "找不到 MSVC v143+ toolset。请在 Visual Studio Installer 中安装 MSVC C++ build tools。"
+                    .to_string()
+            }
+            Self::MissingClangd => {
+                "找不到 clangd。请安装 LLVM，或将 clangd.exe 加入 PATH。".to_string()
+            }
+            Self::IoMessage(message) => message.clone(),
+        }
+    }
+}
+
+impl fmt::Display for ToolkitError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.user_message())
+    }
+}
