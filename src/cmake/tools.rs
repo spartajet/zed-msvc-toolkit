@@ -33,6 +33,7 @@ pub enum CmakeGenerator {
 
 /// CMake 构建类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum CmakeBuildType {
     Debug,
     Release,
@@ -41,6 +42,7 @@ pub enum CmakeBuildType {
 
 impl CmakeGenerator {
     /// 返回生成器的名称（不包括 -G 前缀）。
+    #[allow(dead_code)]
     pub fn generator_name(&self) -> &str {
         match self {
             Self::Ninja => "Ninja",

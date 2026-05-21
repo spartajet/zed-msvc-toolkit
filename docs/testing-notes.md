@@ -71,6 +71,28 @@ cargo build
 | .neocmake.toml 配置 | ⏳ 待用户在 Zed 中测试 |
 | settings.json 覆盖 | ⏳ 待用户在 Zed 中测试 |
 | clangd 兼容性 | ⏳ 待用户在 Zed 中测试 |
+| **CMake 语言识别** | ⏳ 待用户在 Zed 中测试 |
+
+## V0.5.0 更新 (2026-05-20)
+
+### 修复内容
+1. **添加 CMake 语言定义**：创建 `languages/cmake/` 目录及配置文件
+   - `config.toml` - 语言配置（匹配 CMakeLists.txt 文件）
+   - `highlights.scm` - 语法高亮规则
+   - `indents.scm` - 缩进规则
+   - `injections.scm` - 注入规则
+   - `textobjects.scm` - 文本对象规则
+
+2. **修改 extension.toml**：
+   - 将 `languages = ["cmake"]` 改为 `language = "CMake"`
+   - 添加 `[grammars.cmake]` 条目用于 Tree-sitter 语法
+
+### 测试步骤
+1. 重新编译扩展：`cargo build --target wasm32-unknown-unknown --release`
+2. 安装到 Zed 扩展目录
+3. 打开 CMakeLists.txt 文件
+4. **预期结果**：文件应被识别为 CMake 语言（不再是 "plain text"）
+5. 检查 LSP 日志：`dev: open language server logs`
 
 ## 注意事项
 

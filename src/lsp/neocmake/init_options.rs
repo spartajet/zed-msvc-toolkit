@@ -1,5 +1,7 @@
 //! neocmakelsp LSP 初始化选项。
 
+// FeatureConfig 在测试中使用
+#[allow(unused_imports)]
 use crate::lsp::neocmake::config::{FeatureConfig, NeocmakeConfig};
 use serde_json::Value;
 

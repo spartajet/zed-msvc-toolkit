@@ -19,10 +19,13 @@ pub fn validate_language_server_id(id: &str) -> ToolkitResult<()> {
 }
 
 /// 构建带配置的 neocmakelsp 命令。
-pub fn command_from_worktree(worktree: &zed::Worktree) -> ToolkitResult<zed::Command> {
+pub fn command_from_worktree(
+    worktree: &zed::Worktree,
+    language_server_id: &zed::LanguageServerId,
+) -> ToolkitResult<zed::Command> {
     log_message("构建 neocmakelsp 命令");
 
-    let binary_path = get_or_download_binary(worktree)?;
+    let binary_path = get_or_download_binary(worktree, language_server_id)?;
     log_message(&format!("neocmakelsp 二进制: {binary_path}"));
 
     let config = load_config(worktree);

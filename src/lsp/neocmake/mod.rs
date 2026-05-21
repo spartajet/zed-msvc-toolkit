@@ -8,4 +8,7 @@ pub mod download;
 pub mod init_options;
 pub mod server;
 
+// 便捷导出（可通过 lsp::neocmake::command_from_worktree 调用）
+#[allow(dead_code)]
+#[allow(unused_imports)]
 pub use server::command_from_worktree;

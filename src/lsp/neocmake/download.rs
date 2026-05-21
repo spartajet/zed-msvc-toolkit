@@ -1,170 +1,125 @@
 //! neocmakelsp 二进制查找和下载。
 //!
-//! 使用 PowerShell 命令从 GitHub Releases 下载 neocmakelsp。
+//! 使用 Zed API 从 GitHub Releases 下载 neocmakelsp。
 
 use crate::debug::log_message;
 use crate::error::{ToolkitError, ToolkitResult};
-use crate::environment::tools::{CommandRunner, ZedCommandRunner};
 use zed_extension_api as zed;
 
-const GITHUB_REPO: &str = "neocmakelsp/neocmakelsp";
+const GITHUB_REPO: &str = "Decodetalkers/neocmakelsp";
 const BINARY_NAME: &str = "neocmakelsp";
 
-/// neocmakelsp releases 的平台特定资源名称模式。
-fn platform_asset_name() -> Option<&'static str> {
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    return Some("neocmakelsp-x86_64-pc-windows-msvc.zip");
+/// 获取平台特定的资源名称。
+fn get_asset_name() -> ToolkitResult<String> {
+    let (platform, arch) = zed::current_platform();
 
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    return Some("neocmakelsp-x86_64-unknown-linux-gnu");
+    let arch_str = match arch {
+        zed::Architecture::X8664 => "x86_64",
+        zed::Architecture::Aarch64 => "aarch64",
+        _ => return Err(ToolkitError::NeocmakeDownloadFailed(format!(
+            "不支持的架构: {:?}",
+            arch
+        ))),
+    };
 
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    return Some("neocmakelsp-x86_64-apple-darwin");
+    let os_str = match platform {
+        zed::Os::Windows => "pc-windows-msvc.exe",
+        zed::Os::Linux => "unknown-linux-gnu",
+        zed::Os::Mac => "apple-darwin",
+    };
 
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    return Some("neocmakelsp-aarch64-apple-darwin");
-
-    #[cfg(not(any(
-        all(target_os = "windows", target_arch = "x86_64"),
-        all(target_os = "linux", target_arch = "x86_64"),
-        all(target_os = "macos", target_arch = "x86_64"),
-        all(target_os = "macos", target_arch = "aarch64"),
-    )))]
-    {
-        None
-    }
-}
-
-/// 获取用户本地程序目录（用于存放下载的二进制）。
-fn get_local_binary_dir() -> String {
-    #[cfg(target_os = "windows")]
-    {
-        // 使用 %LOCALAPPDATA%\zed-msvc-toolkit
-        std::env::var("LOCALAPPDATA")
-            .map(|p| format!("{p}\\zed-msvc-toolkit\\neocmakelsp"))
-            .unwrap_or_else(|_| ".\\neocmakelsp".to_string())
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        std::env::var("HOME")
-            .map(|p| format!("{p}/.local/share/zed-msvc-toolkit/neocmakelsp"))
-            .unwrap_or_else(|_| "./neocmakelsp".to_string())
-    }
+    Ok(format!("{}-{}-{}", BINARY_NAME, arch_str, os_str))
 }
 
 /// 从 GitHub Releases 下载 neocmakelsp 二进制。
-fn download_binary() -> ToolkitResult<String> {
-    let asset_name = platform_asset_name()
-        .ok_or_else(|| ToolkitError::NeocmakeDownloadFailed("不支持的平台".to_string()))?;
+fn download_binary(language_server_id: &zed::LanguageServerId) -> ToolkitResult<String> {
+    log_message("从 GitHub releases 下载 neocmakelsp");
 
-    log_message(&format!("从 GitHub releases 下载 neocmakelsp，资源: {asset_name}"));
+    let release = zed::latest_github_release(
+        GITHUB_REPO,
+        zed::GithubReleaseOptions {
+            require_assets: true,
+            pre_release: false,
+        },
+    )
+    .map_err(|e| {
+        log_message(&format!("获取 GitHub release 失败: {e}"));
+        ToolkitError::NeocmakeDownloadFailed(format!("获取 GitHub release: {e}"))
+    })?;
 
-    let target_dir = get_local_binary_dir();
-    let binary_path = format!("{target_dir}\\{BINARY_NAME}");
+    let asset_name = get_asset_name()?;
+    log_message(&format!("查找资源: {asset_name}"));
 
-    // 检查是否已存在
-    if std::path::Path::new(&binary_path).exists() {
-        log_message(&format!("neocmakelsp 已存在于: {binary_path}"));
-        return Ok(binary_path);
-    }
+    let asset = release
+        .assets
+        .iter()
+        .find(|a| a.name == asset_name)
+        .ok_or_else(|| {
+            ToolkitError::NeocmakeDownloadFailed(format!(
+                "未找到匹配的资源: {}。可用资源: {:?}",
+                asset_name,
+                release.assets.iter().map(|a| &a.name).collect::<Vec<_>>()
+            ))
+        })?;
 
-    // 构建下载 URL
-    let download_url = format!(
-        "https://github.com/{}/releases/latest/download/{}",
-        GITHUB_REPO, asset_name
+    let binary_path = format!("{}-{}", BINARY_NAME, release.version);
+
+    log_message(&format!("下载 URL: {}", asset.download_url));
+    log_message(&format!("目标路径: {binary_path}"));
+
+    zed::set_language_server_installation_status(
+        language_server_id,
+        &zed::LanguageServerInstallationStatus::Downloading,
     );
 
-    log_message(&format!("下载 URL: {download_url}"));
-    log_message(&format!("目标目录: {target_dir}"));
+    zed::download_file(
+        &asset.download_url,
+        &binary_path,
+        zed::DownloadedFileType::Uncompressed,
+    )
+    .map_err(|e| {
+        log_message(&format!("下载文件失败: {e}"));
+        ToolkitError::NeocmakeDownloadFailed(format!("下载文件: {e}"))
+    })?;
 
-    // 使用 PowerShell 下载
-    let runner = ZedCommandRunner;
+    #[cfg(unix)]
+    zed::make_file_executable(&binary_path)
+        .map_err(|e| ToolkitError::NeocmakeDownloadFailed(format!("设置可执行权限: {e}")))?;
 
-    // 创建目标目录
-    let mkdir_script = format!(
-        "$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force -Path '{}' | Out-Null; 'created'",
-        target_dir.replace('\\', "\\\\").replace('\'', "''")
-    );
-    let mkdir_args = vec![
-        "-NoProfile".to_string(),
-        "-Command".to_string(),
-        mkdir_script,
-    ];
-
-    if let Err(e) = runner.run_command("powershell", &mkdir_args) {
-        log_message(&format!("创建目录失败（可能已存在）: {e}"));
-    }
-
-    // 下载文件
-    let download_script = format!(
-        "$ErrorActionPreference='Stop'; \
-         $ProgressPreference = 'SilentlyContinue'; \
-         $url = '{}'; \
-         $out = '{}'; \
-         $dir = Split-Path -Parent $out; \
-         if ($dir) {{ New-Item -ItemType Directory -Force -Path $dir | Out-Null }}; \
-         Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing; \
-         'downloaded'",
-        download_url.replace('\'', "''"),
-        binary_path.replace('\\', "\\\\").replace('\'', "''")
-    );
-
-    let download_args = vec![
-        "-NoProfile".to_string(),
-        "-Command".to_string(),
-        download_script,
-    ];
-
-    let output = runner.run_command("powershell", &download_args)
-        .map_err(|e| ToolkitError::NeocmakeDownloadFailed(format!("执行下载命令: {e}")))?;
-
-    if output.status != Some(0) {
-        return Err(ToolkitError::NeocmakeDownloadFailed(format!(
-            "下载失败: {}", output.stderr
-        )));
-    }
-
-    log_message(&format!("已下载到: {binary_path}"));
-
-    // 如果是 .zip 文件，需要解压
-    if asset_name.ends_with(".zip") {
-        log_message("解压 zip 文件");
-
-        let unzip_script = format!(
-            "$ErrorActionPreference='Stop'; \
-             $zip = '{}'; \
-             $dest = '{}'; \
-             Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force; \
-             'unzipped'",
-            binary_path.replace('\\', "\\\\").replace('\'', "''"),
-            target_dir.replace('\\', "\\\\").replace('\'', "''")
-        );
-
-        let unzip_args = vec![
-            "-NoProfile".to_string(),
-            "-Command".to_string(),
-            unzip_script,
-        ];
-
-        let output = runner.run_command("powershell", &unzip_args)
-            .map_err(|e| ToolkitError::NeocmakeDownloadFailed(format!("解压: {e}")))?;
-
-        if output.status != Some(0) {
-            return Err(ToolkitError::NeocmakeDownloadFailed(format!(
-                "解压失败: {}", output.stderr
-            )));
-        }
-
-        log_message("解压完成");
-    }
-
-    log_message(&format!("neocmakelsp 就绪于: {binary_path}"));
+    log_message(&format!("neocmakelsp 已下载到: {binary_path}"));
     Ok(binary_path)
 }
 
-/// 在 PATH 中查找 neocmakelsp 或下载它。
-pub fn get_or_download_binary(worktree: &zed::Worktree) -> ToolkitResult<String> {
+/// 清理旧版本的 LSP 二进制。
+fn cleanup_old_binaries(current_version: &str) {
+    log_message(&format!("清理旧版本的 neocmakelsp (保留 {current_version})"));
+
+    let entries = match std::fs::read_dir(".") {
+        Ok(entries) => entries,
+        Err(e) => {
+            log_message(&format!("无法列出目录: {e}"));
+            return;
+        }
+    };
+
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+
+        // 删除旧版本
+        if name_str.starts_with("neocmakelsp-") && name_str != current_version {
+            log_message(&format!("删除旧版本: {name_str}"));
+            let _ = std::fs::remove_file(entry.path());
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// 在 PATH 中查找或下载 neocmakelsp。
+pub fn get_or_download_binary(
+    worktree: &zed::Worktree,
+    language_server_id: &zed::LanguageServerId,
+) -> ToolkitResult<String> {
     // 首先尝试 PATH
     if let Some(path) = worktree.which(BINARY_NAME) {
         log_message(&format!("在 PATH 中找到 neocmakelsp: {path}"));
@@ -172,5 +127,8 @@ pub fn get_or_download_binary(worktree: &zed::Worktree) -> ToolkitResult<String>
     }
 
     log_message("PATH 中未找到 neocmakelsp，尝试下载");
-    download_binary()
+    let binary_path = download_binary(language_server_id)?;
+
+    cleanup_old_binaries(&binary_path);
+    Ok(binary_path)
 }

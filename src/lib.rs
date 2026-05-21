@@ -1,5 +1,7 @@
 use zed_extension_api as zed;
 
+// CMake 集成模块（预留功能，当前仅被 clangd LSP 使用）
+#[allow(unused_imports)]
 mod cmake;
 mod debug;
 mod environment;
@@ -13,6 +15,18 @@ struct MsvcToolkitExtension;
 impl zed::Extension for MsvcToolkitExtension {
     fn new() -> Self {
         debug::log_message("extension instance created");
+
+        // 检查 Git 是否可用
+        match std::process::Command::new("git").arg("--version").output() {
+            Ok(output) => {
+                let version = String::from_utf8_lossy(&output.stdout);
+                debug::log_message(&format!("Git is available: {version}"));
+            }
+            Err(e) => {
+                debug::log_message(&format!("Git is NOT available: {e}. Grammar download may fail."));
+            }
+        }
+
         Self
     }
 
@@ -46,7 +60,7 @@ impl zed::Extension for MsvcToolkitExtension {
                 if let Err(error_msg) = validate_and_prepare_neocmake(worktree, language_server_id_value) {
                     return Err(error_msg);
                 }
-                lsp::neocmake::server::command_from_worktree(worktree)
+                lsp::neocmake::server::command_from_worktree(worktree, language_server_id_value)
                     .map_err(|e| e.user_message())
             }
             _ => {

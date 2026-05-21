@@ -10,10 +10,17 @@ pub enum ToolkitError {
     MissingMsvcToolset,
     MissingClangd,
     MissingCmake,
+    // 预留错误：neocmakelsp 相关
+    #[allow(dead_code)]
     MissingNeocmakelsp,
+    #[allow(dead_code)]
     NeocmakeDownloadFailed(String),
+    #[allow(dead_code)]
     NeocmakeConfigParseError(String),
+    // 预留错误：通用工具和配置
+    #[allow(dead_code)]
     MissingTool(String),
+    #[allow(dead_code)]
     MissingWorkspaceConfig(String),
     ProcessFailed {
         command: String,

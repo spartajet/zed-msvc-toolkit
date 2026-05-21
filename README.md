@@ -10,7 +10,7 @@ MSVC and clangd assistant for Windows C++ CMake projects in Zed.
 - **V0.2**: CMake `compile_commands.json` auto-detection
 - **V0.3**: CMake command generation infrastructure
 - **V0.4**: `.zed/tasks.json` generation for CMake operations
-- **V0.5**: neocmakelsp integration for CMake language support
+- **V0.5**: neocmakelsp integration for CMake language support (LSP + syntax highlighting)
 
 ## Documentation
 

@@ -1,24 +1,25 @@
 id = "zed-msvc-toolkit"
 name = "Zed MSVC C++ Assistant"
 description = "MSVC and clangd assistant for Windows C++ CMake projects in Zed."
-version = "0.4.0"
+version = "0.5.0"
 schema_version = 1
 authors = ["XRZB"]
 repository = "https://github.com/XRZB/zed-msvc-toolkit"
 
-capabilities = [
-  { kind = "process:exec", command = "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe", args = ["**"] },
-  { kind = "process:exec", command = "powershell", args = ["**"] },
-  { kind = "process:exec", command = "cmake", args = ["**"] },
-]
+[[languages]]
+path = "languages/cmake"
 
 [language_servers.msvc-cpp-clangd]
 name = "MSVC clangd"
 languages = ["C", "C++"]
 
 [language_servers.msvc-cmake-neocmake]
-name = "MSVC NeoCMake"
+name = "neocmakelsp"
 languages = ["CMake"]
+
+[grammars.cmake]
+repository = "https://github.com/uyha/tree-sitter-cmake"
+commit = "cf9799600b2ba5e6620fdabddec3b2db8306bc46"
 
 # V0.4：CMake 任务通过 .zed/tasks.json 提供
 # 用户可以在任务面板（Ctrl+Shift+T）中运行 CMake configure 和 build 命令
