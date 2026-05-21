@@ -24,11 +24,11 @@ pub fn discover_compile_database(root_path: &str) -> Option<String> {
 
     // List of directories to check, in priority order
     let build_dirs = [
-        "",                              // Root directory
-        "build",                         // Traditional
-        "cmake-build-debug",             // CLion Debug
-        "cmake-build-release",           // CLion Release
-        "cmake-build-relwithdebinfo",    // CLion RelWithDebInfo
+        "",                           // Root directory
+        "build",                      // Traditional
+        "cmake-build-debug",          // CLion Debug
+        "cmake-build-release",        // CLion Release
+        "cmake-build-relwithdebinfo", // CLion RelWithDebInfo
     ];
 
     for build_dir in build_dirs {

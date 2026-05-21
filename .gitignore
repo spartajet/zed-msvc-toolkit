@@ -1,3 +1,5 @@
 /target
 /.worktrees
 *.wasm
+.claude/
+superpowers/
