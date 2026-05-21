@@ -1,6 +1,8 @@
 # Zed MSVC C++ Assistant
 
-MSVC and clangd assistant for Windows C++ CMake projects in Zed.
+Windows-specific MSVC toolkit for Zed. Automatically detects and configures MSVC toolchain, Windows SDK, and clangd for C/C++ CMake projects.
+
+> **Note**: This extension is designed specifically for Windows + MSVC development. If you need CMake support on other platforms, consider the [neocmake](https://github.com/k0tran/zed_neocmake) extension.
 
 ## Version 0.5.0
 

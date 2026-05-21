@@ -1,4 +1,4 @@
-id = "zed-msvc-toolkit"
+id = "msvc-cpp-toolkit"
 name = "Zed MSVC C++ Assistant"
 description = "MSVC and clangd assistant for Windows C++ CMake projects in Zed."
 version = "0.5.0"
