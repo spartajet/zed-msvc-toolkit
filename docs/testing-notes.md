@@ -1,37 +1,37 @@
-# neocmakelsp 集成测试笔记
+# neocmakelsp Integration Testing Notes
 
-测试日期: 2026-05-20
+Test Date: 2026-05-20
 
-## 测试步骤
+## Test Steps
 
-### 1. 构建扩展
+### 1. Build Extension
 ```bash
 cargo build
 ```
-结果: ✅ 通过 (0 errors, 18 warnings)
+Result: ✅ Passed (0 errors, 18 warnings)
 
-### 2. 在 Zed 中测试
+### 2. Testing in Zed
 
-#### 手动测试清单:
+#### Manual Testing Checklist:
 
-1. **CMake LSP 激活**
-   - 打开一个 CMake 项目（包含 CMakeLists.txt）
-   - 打开 CMakeLists.txt 文件
-   - 检查 LSP 日志: `dev: open language server logs`
-   - 预期: 看到 "msvc-cmake-neocmake" LSP 启动
+1. **CMake LSP Activation**
+   - Open a CMake project (containing CMakeLists.txt)
+   - Open CMakeLists.txt file
+   - Check LSP logs: `dev: open language server logs`
+   - Expected: See "msvc-cmake-neocmake" LSP start
 
-2. **PATH 查找**
-   - 如果 neocmakelsp 在 PATH 中
-   - 预期: 日志显示 "在 PATH 中找到 neocmakelsp: ..."
+2. **PATH Lookup**
+   - If neocmakelsp is in PATH
+   - Expected: Log shows "found neocmakelsp in PATH: ..."
 
-3. **GitHub 下载回退**
-   - 如果 neocmakelsp 不在 PATH 中
-   - 预期: 日志显示 "PATH 中未找到 neocmakelsp，尝试下载"
-   - 预期: 下载 `neocmakelsp/neocmakelsp` 最新 release 中匹配平台的资产
-   - Windows 预期资产: `neocmakelsp-x86_64-pc-windows-msvc.zip`
+3. **GitHub Download Fallback**
+   - If neocmakelsp is not in PATH
+   - Expected: Log shows "neocmakelsp not found in PATH, attempting download"
+   - Expected: Downloads matching platform asset from `neocmakelsp/neocmakelsp` latest release
+   - Windows expected asset: `neocmakelsp-x86_64-pc-windows-msvc.zip`
 
-4. **.neocmake.toml 配置**
-   - 创建项目根目录的 `.neocmake.toml`:
+4. **.neocmake.toml Configuration**
+   - Create `.neocmake.toml` in project root:
      ```toml
      [format]
      enable = false
@@ -39,11 +39,11 @@ cargo build
      [lint]
      enable = true
      ```
-   - 预期: neocmakelsp 自己读取该文件
-   - 预期: 扩展不会解析或合并 `.neocmake.toml`
+   - Expected: neocmakelsp reads this file itself
+   - Expected: Extension does not parse or merge `.neocmake.toml`
 
-5. **settings.json 覆盖**
-   - 创建 `.zed/settings.json`:
+5. **settings.json Override**
+   - Create `.zed/settings.json`:
      ```json
      {
        "lsp": {
@@ -55,49 +55,49 @@ cargo build
        }
      }
      ```
-   - 预期: 日志显示 "settings.json 覆盖: format.enable = true"
+   - Expected: Log shows "settings.json override: format.enable = true"
 
-6. **clangd 仍然有效**
-   - 打开 C/C++ 文件
-   - 预期: clangd LSP 正常工作
+6. **clangd Still Works**
+   - Open C/C++ file
+   - Expected: clangd LSP works normally
 
-## 测试结果
+## Test Results
 
-| 测试项 | 状态 |
-|--------|------|
-| 扩展编译 | ✅ 通过 |
-| CMake LSP 激活 | ⏳ 待用户在 Zed 中测试 |
-| PATH 查找 | ⏳ 待用户在 Zed 中测试 |
-| GitHub 下载 | ⏳ 待用户在 Zed 中测试 |
-| .neocmake.toml 配置 | ⏳ 待用户在 Zed 中测试 |
-| settings.json 覆盖 | ⏳ 待用户在 Zed 中测试 |
-| clangd 兼容性 | ⏳ 待用户在 Zed 中测试 |
-| **CMake 语言识别** | ⏳ 待用户在 Zed 中测试 |
+| Test Item | Status |
+|-----------|--------|
+| Extension Build | ✅ Passed |
+| CMake LSP Activation | ⏳ Awaiting user testing in Zed |
+| PATH Lookup | ⏳ Awaiting user testing in Zed |
+| GitHub Download | ⏳ Awaiting user testing in Zed |
+| .neocmake.toml Configuration | ⏳ Awaiting user testing in Zed |
+| settings.json Override | ⏳ Awaiting user testing in Zed |
+| clangd Compatibility | ⏳ Awaiting user testing in Zed |
+| **CMake Language Recognition** | ⏳ Awaiting user testing in Zed |
 
-## V0.5.0 更新 (2026-05-20)
+## V0.5.0 Update (2026-05-20)
 
-### 修复内容
-1. **添加 CMake 语言定义**：创建 `languages/cmake/` 目录及配置文件
-   - `config.toml` - 语言配置（匹配 CMakeLists.txt 文件）
-   - `highlights.scm` - 语法高亮规则
-   - `indents.scm` - 缩进规则
-   - `injections.scm` - 注入规则
-   - `textobjects.scm` - 文本对象规则
+### Fixed Content
+1. **Added CMake Language Definition**: Created `languages/cmake/` directory and config files
+   - `config.toml` - Language configuration (matches CMakeLists.txt files)
+   - `highlights.scm` - Syntax highlighting rules
+   - `indents.scm` - Indentation rules
+   - `injections.scm` - Injection rules
+   - `textobjects.scm` - Text object rules
 
-2. **修改 extension.toml**：
-   - 将 `languages = ["cmake"]` 改为 `language = "CMake"`
-   - 添加 `[grammars.cmake]` 条目用于 Tree-sitter 语法
+2. **Modified extension.toml**:
+   - Changed `languages = ["cmake"]` to `language = "CMake"`
+   - Added `[grammars.cmake]` entry for Tree-sitter grammar
 
-### 测试步骤
-1. 重新编译扩展：`cargo build --target wasm32-unknown-unknown --release`
-2. 安装到 Zed 扩展目录
-3. 打开 CMakeLists.txt 文件
-4. **预期结果**：文件应被识别为 CMake 语言（不再是 "plain text"）
-5. 检查 LSP 日志：`dev: open language server logs`
+### Test Steps
+1. Rebuild extension: `cargo build --target wasm32-unknown-unknown --release`
+2. Install to Zed extension directory
+3. Open CMakeLists.txt file
+4. **Expected Result**: File should be recognized as CMake language (no longer "plain text")
+5. Check LSP logs: `dev: open language server logs`
 
-## 注意事项
+## Notes
 
-- 扩展编译为 `target/debug/zed-msvc-toolkit.dll`
-- 需要将此 DLL 复制到 Zed 扩展目录进行测试
-- Zed 扩展目录通常位于 `%ZED_USER_EXTENSIONS_DIR%`
-- neocmakelsp 优先使用 PATH 中的二进制；PATH 中不存在时自动下载 GitHub Release。
+- Extension compiles to `target/debug/zed-msvc-toolkit.dll`
+- Need to copy this DLL to Zed extension directory for testing
+- Zed extension directory typically located at `%ZED_USER_EXTENSIONS_DIR%`
+- neocmakelsp prioritizes binary in PATH; automatically downloads GitHub Release when not in PATH.

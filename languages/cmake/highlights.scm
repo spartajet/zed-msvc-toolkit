@@ -114,10 +114,10 @@
  )
 
 ; ──────────────────────────────────────────────────────────────────────────────
-; Zed 特定增强：文件路径高亮
+; Zed-specific enhancement: file path highlighting
 ; ──────────────────────────────────────────────────────────────────────────────
 
-; 为 set() 命令中的源文件路径添加高亮
+; Add highlighting for source file paths in set() commands
 ((normal_command
   (identifier) @_function
   (#match? @_function "^[sS][eE][tT]$")
@@ -128,7 +128,7 @@
   )
 (#match? @string ".*[/\\\\].*\\.(?:cpp|cc|c|h|hpp|hh|cxx|rc|def|lib|dll|exe|o|a|cmake)$"))
 
-; 为 add_executable/add_library 中的源文件添加高亮
+; Add highlighting for source files in add_executable/add_library
 ((normal_command
   (identifier) @_function
   (#match? @_function "^(?:[aA][dD][dD]_[eE][xX][eE][cC][uU][tT][aA][bB][lL][eE]|[aA][dD][dD]_[lL][iI][bB][rR][aA][rR][yY])$")
@@ -138,7 +138,7 @@
     (argument)+ @string))
 (#match? @string ".*\\.(?:cpp|cc|c|h|hpp|hh|cxx|rc|def|lib|dll|exe|o|a|cmake)$"))
 
-; 为 target_sources 中的源文件添加高亮
+; Add highlighting for source files in target_sources
 ((normal_command
   (identifier) @_function
   (#match? @_function "^[tT][aA][rR][gG][eE][tT]_[sS][oO][uU][rR][cC][eE][sS]$")

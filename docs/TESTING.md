@@ -1,99 +1,99 @@
-# Zed MSVC C++ Assistant - 测试指南
+# Zed MSVC C++ Assistant - Testing Guide
 
-## 运行单元测试
+## Running Unit Tests
 
 ```bash
-# 运行所有测试
+# Run all tests
 cargo test
 
-# 运行特定模块测试
+# Run specific module tests
 cargo test --lib cmake::tasks
 cargo test --lib environment::msvc
 cargo test --lib lsp::clangd_config
 
-# 显示测试输出
+# Show test output
 cargo test -- --nocapture
 
-# 运行特定测试
+# Run specific test
 cargo test test_ninja_generator_produces_correct_args
 ```
 
-## 测试覆盖
+## Test Coverage
 
-### CMake 模块测试
+### CMake Module Tests
 
-**文件**: `src/cmake/tools.rs`
+**File**: `src/cmake/tools.rs`
 
-- `ninja_generator_produces_correct_args` - Ninja 生成器参数
-- `visual_studio_generator_produces_correct_args` - VS 生成器参数
-- `build_type_produces_correct_cmake_var` - 构建类型变量
-- `build_type_produces_correct_build_arg` - 构建参数
-- `configure_command_for_ninja` - Ninja configure 命令
-- `configure_command_for_visual_studio` - VS configure 命令
-- `build_command_includes_config` - build 命令格式
-- `configure_command_arguments_are_separate` - 参数分离验证
-- `source_dir_with_spaces_is_separate_argument` - 路径空格处理
+- `ninja_generator_produces_correct_args` - Ninja generator arguments
+- `visual_studio_generator_produces_correct_args` - VS generator arguments
+- `build_type_produces_correct_cmake_var` - Build type variable
+- `build_type_produces_correct_build_arg` - Build argument
+- `configure_command_for_ninja` - Ninja configure command
+- `configure_command_for_visual_studio` - VS configure command
+- `build_command_includes_config` - build command format
+- `configure_command_arguments_are_separate` - Argument separation verification
+- `source_dir_with_spaces_is_separate_argument` - Path space handling
 
-**文件**: `src/cmake/tasks.rs`
+**File**: `src/cmake/tasks.rs`
 
-- `generate_tasks_json_creates_valid_json` - JSON 格式验证
-- `tasks_include_configure_and_build` - 任务完整性
-- `tasks_use_workspace_root_variable` - 变量使用
-- `custom_build_dir_and_type` - 自定义配置
+- `generate_tasks_json_creates_valid_json` - JSON format verification
+- `tasks_include_configure_and_build` - Task completeness
+- `tasks_use_workspace_root_variable` - Variable usage
+- `custom_build_dir_and_type` - Custom configuration
 
-**文件**: `src/cmake/compile_db.rs`
+**File**: `src/cmake/compile_db.rs`
 
-- `find_compile_commands_in_root` - 根目录探测
-- `find_compile_commands_in_build_subdir` - build 子目录探测
-- `returns_none_when_not_found` - 文件不存在处理
-- `parent_directory_is_root` - 返回父目录
-- `parent_directory_is_build_subdir` - 返回 build 子目录
+- `find_compile_commands_in_root` - Root directory detection
+- `find_compile_commands_in_build_subdir` - build subdirectory detection
+- `returns_none_when_not_found` - File not found handling
+- `parent_directory_is_root` - Return parent directory
+- `parent_directory_is_build_subdir` - Return build subdirectory
 
-### Environment 模块测试
+### Environment Module Tests
 
-**文件**: `src/environment/msvc.rs`
+**File**: `src/environment/msvc.rs`
 
-- `select_latest_toolset_version` - 工具链版本选择
-- `select_toolset_from_directories` - 目录选择
-- `empty_directory_list_returns_none` - 空列表处理
-- `single_directory_is_selected` - 单目录处理
-- `non_numeric_directories_are_ignored` - 非数字目录过滤
+- `select_latest_toolset_version` - Toolset version selection
+- `select_toolset_from_directories` - Directory selection
+- `empty_directory_list_returns_none` - Empty list handling
+- `single_directory_is_selected` - Single directory handling
+- `non_numeric_directories_are_ignored` - Non-numeric directory filtering
 
-**文件**: `src/environment/windows_sdk.rs`
+**File**: `src/environment/windows_sdk.rs`
 
-- `sdk_paths_with_all_components` - 完整 SDK 路径
-- `sdk_paths_with_missing_shared` - 缺少 shared 组件
-- `empty_sdk_directories_returns_none` - 空 SDK 处理
-- `sdk_version_sorting` - 版本排序
+- `sdk_paths_with_all_components` - Complete SDK paths
+- `sdk_paths_with_missing_shared` - Missing shared component
+- `empty_sdk_directories_returns_none` - Empty SDK handling
+- `sdk_version_sorting` - Version sorting
 
-### LSP 模块测试
+### LSP Module Tests
 
-**文件**: `src/lsp/clangd_config.rs`
+**File**: `src/lsp/clangd_config.rs`
 
-- `generates_clangd_config_with_msvc_paths` - MSVC 路径配置
-- `generates_fallback_config_without_sdk` - 无 SDK 降级
-- `clangd_config_without_compile_db` - 无编译数据库
-- `clangd_config_with_compile_db` - 有编译数据库
-- `paths_with_spaces_are_quoted` - 路径引号处理
-- `paths_without_spaces_are_not_quoted` - 无空格路径
+- `generates_clangd_config_with_msvc_paths` - MSVC path configuration
+- `generates_fallback_config_without_sdk` - No SDK fallback
+- `clangd_config_without_compile_db` - No compile database
+- `clangd_config_with_compile_db` - With compile database
+- `paths_with_spaces_are_quoted` - Path quoting handling
+- `paths_without_spaces_are_not_quoted` - No-space paths
 
-## 集成测试
+## Integration Testing
 
-### 准备测试环境
+### Preparing Test Environment
 
-1. 安装必要工具：
+1. Install required tools:
    ```bash
-   # 检查 Visual Studio
+   # Check Visual Studio
    "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
 
-   # 检查 clangd
+   # Check clangd
    clangd --version
 
-   # 检查 CMake
+   # Check CMake
    cmake --version
    ```
 
-2. 创建测试 CMake 项目：
+2. Create test CMake project:
    ```bash
    mkdir test-cmake-project
    cd test-cmake-project
@@ -114,123 +114,123 @@ cargo test test_ninja_generator_produces_correct_args
    EOF
    ```
 
-3. 在 Zed 中打开测试项目
+3. Open test project in Zed
 
-### 测试步骤
+### Test Steps
 
-#### 1. 语言服务器启动
+#### 1. Language Server Startup
 
-1. 打开任意 `.c` 或 `.cpp` 文件
-2. 打开 Zed 的 "Outline" 面板
-3. 验证 clangd 正在运行（应有符号索引显示）
+1. Open any `.c` or `.cpp` file
+2. Open Zed's "Outline" panel
+3. Verify clangd is running (should show symbol indexing)
 
-#### 2. CMake 任务运行
+#### 2. CMake Task Execution
 
-1. 复制任务文件：
+1. Copy task file:
    ```bash
    cp docs/zed-tasks-example.json .zed/tasks.json
    ```
 
-2. 打开任务面板：`Ctrl+Shift+T`
+2. Open task panel: `Ctrl+Shift+T`
 
-3. 运行 "CMake: Configure (Debug)"
+3. Run "CMake: Configure (Debug)"
 
-4. 验证 `build/` 目录生成
+4. Verify `build/` directory is generated
 
-5. 运行 "CMake: Build (Debug)"
+5. Run "CMake: Build (Debug)"
 
-6. 验证可执行文件生成
+6. Verify executable is generated
 
-#### 3. 编译数据库测试
+#### 3. Compile Database Testing
 
-1. 配置项目（如果尚未配置）：
+1. Configure project (if not already configured):
    ```bash
    cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
    ```
 
-2. 验证 `build/compile_commands.json` 存在
+2. Verify `build/compile_commands.json` exists
 
-3. 在 Zed 中打开 C++ 文件
+3. Open C++ file in Zed
 
-4. 验证代码跳转和自动补全工作正常
+4. Verify code navigation and autocomplete work normally
 
-## 手动验证清单
+## Manual Verification Checklist
 
-- [ ] clangd 在打开 C/C++ 文件时自动启动
-- [ ] 头文件跳转（F12）工作正常
-- [ ] 代码补全显示 MSVC 标准库符号
-- [ ] 任务面板显示 CMake 任务
-- [ ] CMake Configure 成功生成构建文件
-- [ ] CMake Build 成功生成可执行文件
-- [ ] `compile_commands.json` 被自动探测
-- [ ] clangd 使用编译数据库进行代码分析
+- [ ] clangd starts automatically when opening C/C++ files
+- [ ] Header file navigation (F12) works normally
+- [ ] Code completion shows MSVC standard library symbols
+- [ ] Task panel shows CMake tasks
+- [ ] CMake Configure successfully generates build files
+- [ ] CMake Build successfully generates executable
+- [ ] `compile_commands.json` is automatically detected
+- [ ] clangd uses compile database for code analysis
 
-## 调试测试失败
+## Debugging Test Failures
 
-### WASM 测试限制
+### WASM Test Limitations
 
-单元测试无法在 WASM 目标上直接运行：
+Unit tests cannot run directly on WASM target:
 ```bash
-# 这会失败
+# This will fail
 cargo test --target wasm32-unknown-unknown
 ```
 
-使用主机目标运行：
+Use host target to run:
 ```bash
-# 这会工作
+# This will work
 cargo test
 ```
 
-### 查看详细输出
+### View Detailed Output
 
 ```bash
-# 显示测试输出
+# Show test output
 cargo test -- --nocapture
 
-# 显示详细测试信息
+# Show detailed test information
 cargo test -- --show-output
 
-# 运行但忽略错误（查看所有结果）
+# Run but ignore errors (see all results)
 cargo test -- --no-fail-fast
 ```
 
-## 性能测试
+## Performance Testing
 
-### 测量扩展启动时间
+### Measure Extension Startup Time
 
-1. 打开 Zed 日志：`Ctrl+Shift+P` → "Zed: Open Logs"
-2. 搜索 "zed-msvc-toolkit" 相关消息
-3. 检查语言服务器启动耗时
+1. Open Zed logs: `Ctrl+Shift+P` → "Zed: Open Logs"
+2. Search for "zed-msvc-toolkit" related messages
+3. Check language server startup duration
 
-### 测量 clangd 索引时间
+### Measure clangd Indexing Time
 
-1. 打开大型 C++ 项目
-2. 观察 clangd 日志中的索引进度
-3. 记录完整索引耗时
+1. Open large C++ project
+2. Watch clangd logs for indexing progress
+3. Record complete indexing duration
 
-## 持续集成
+## Continuous Integration
 
-本地 CI 测试流程：
+Local CI testing workflow:
 ```bash
-# 格式检查
+# Format check
 cargo fmt -- --check
 
-# Clippy 检查
+# Clippy check
 cargo clippy -- -D warnings
 
-# 单元测试
+# Unit tests
 cargo test
 
-# WASM 编译检查
+# WASM compile check
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-## 报告问题
+## Reporting Issues
 
-测试失败时，请包含：
-1. Zed 版本
-2. Windows 版本
-3. Visual Studio 版本
-4. 错误消息或日志
-5. 复现步骤
-6. 最小测试项目（如适用）
+When tests fail, please include:
+1. Zed version
+2. Windows version
+3. Visual Studio version
+4. Error messages or logs
+5. Reproduction steps
+6. Minimal test project (if applicable)

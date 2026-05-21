@@ -26,5 +26,5 @@ languages = ["CMake"]
 repository = "https://github.com/uyha/tree-sitter-cmake"
 commit = "cf9799600b2ba5e6620fdabddec3b2db8306bc46"
 
-# V0.4：CMake 任务通过 .zed/tasks.json 提供
-# 用户可以在任务面板（Ctrl+Shift+T）中运行 CMake configure 和 build 命令
+# V0.4: CMake tasks provided via .zed/tasks.json
+# Users can run CMake configure and build commands in task panel (Ctrl+Shift+T)
