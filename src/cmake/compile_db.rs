@@ -10,7 +10,10 @@ pub const COMPILE_COMMANDS_JSON: &str = "compile_commands.json";
 ///
 /// 搜索顺序：
 /// 1. 工作区根目录
-/// 2. build/ 子目录
+/// 2. build/ 子目录（传统方式）
+/// 3. cmake-build-debug/ 子目录（CLion Debug）
+/// 4. cmake-build-release/ 子目录（CLion Release）
+/// 5. cmake-build-relwithdebinfo/ 子目录（CLion RelWithDebInfo）
 ///
 /// # 返回值
 ///
@@ -19,18 +22,26 @@ pub const COMPILE_COMMANDS_JSON: &str = "compile_commands.json";
 pub fn discover_compile_database(root_path: &str) -> Option<String> {
     let root = Path::new(root_path);
 
-    // 先检查根目录
-    let root_db = root.join(COMPILE_COMMANDS_JSON);
-    if root_db.exists() {
-        // 根目录下的文件，返回root_path本身
-        return root.to_str().map(String::from);
-    }
+    // 检查的目录列表，按优先级排序
+    let build_dirs = [
+        "",                              // 根目录
+        "build",                         // 传统方式
+        "cmake-build-debug",             // CLion Debug
+        "cmake-build-release",           // CLion Release
+        "cmake-build-relwithdebinfo",    // CLion RelWithDebInfo
+    ];
 
-    // 再检查 build/ 子目录
-    let build_dir = root.join("build");
-    let build_db = build_dir.join(COMPILE_COMMANDS_JSON);
-    if build_db.exists() {
-        return build_dir.to_str().map(String::from);
+    for build_dir in build_dirs {
+        let dir = if build_dir.is_empty() {
+            root.to_path_buf()
+        } else {
+            root.join(build_dir)
+        };
+
+        let db_path = dir.join(COMPILE_COMMANDS_JSON);
+        if db_path.exists() {
+            return dir.to_str().map(String::from);
+        }
     }
 
     None
@@ -160,5 +171,69 @@ mod tests {
         let test_path = "C:\\valid\\utf8\\path";
         let result = std::panic::catch_unwind(|| discover_compile_database(test_path));
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn finds_compile_commands_in_clion_debug_directory() {
+        with_temp_dir(|root| {
+            let build_dir = root.join("cmake-build-debug");
+            fs::create_dir_all(&build_dir).unwrap();
+            fs::write(build_dir.join(COMPILE_COMMANDS_JSON), r#"[]"#).unwrap();
+
+            let root_str = root.to_str().expect("temp path should be valid UTF-8");
+            let found = discover_compile_database(root_str);
+
+            let expected = build_dir.to_str().expect("path should be valid UTF-8");
+            assert_eq!(found, Some(expected.to_string()));
+        });
+    }
+
+    #[test]
+    fn finds_compile_commands_in_clion_release_directory() {
+        with_temp_dir(|root| {
+            let build_dir = root.join("cmake-build-release");
+            fs::create_dir_all(&build_dir).unwrap();
+            fs::write(build_dir.join(COMPILE_COMMANDS_JSON), r#"[]"#).unwrap();
+
+            let root_str = root.to_str().expect("temp path should be valid UTF-8");
+            let found = discover_compile_database(root_str);
+
+            let expected = build_dir.to_str().expect("path should be valid UTF-8");
+            assert_eq!(found, Some(expected.to_string()));
+        });
+    }
+
+    #[test]
+    fn finds_compile_commands_in_clion_relwithdebinfo_directory() {
+        with_temp_dir(|root| {
+            let build_dir = root.join("cmake-build-relwithdebinfo");
+            fs::create_dir_all(&build_dir).unwrap();
+            fs::write(build_dir.join(COMPILE_COMMANDS_JSON), r#"[]"#).unwrap();
+
+            let root_str = root.to_str().expect("temp path should be valid UTF-8");
+            let found = discover_compile_database(root_str);
+
+            let expected = build_dir.to_str().expect("path should be valid UTF-8");
+            assert_eq!(found, Some(expected.to_string()));
+        });
+    }
+
+    #[test]
+    fn prefers_traditional_build_over_clion_style() {
+        with_temp_dir(|root| {
+            let build_dir = root.join("build");
+            let clion_dir = root.join("cmake-build-debug");
+            fs::create_dir_all(&build_dir).unwrap();
+            fs::create_dir_all(&clion_dir).unwrap();
+            fs::write(build_dir.join(COMPILE_COMMANDS_JSON), r#"[]"#).unwrap();
+            fs::write(clion_dir.join(COMPILE_COMMANDS_JSON), r#"[]"#).unwrap();
+
+            let root_str = root.to_str().expect("temp path should be valid UTF-8");
+            let found = discover_compile_database(root_str);
+
+            // 应该优先返回传统的 build/ 目录
+            let expected = build_dir.to_str().expect("path should be valid UTF-8");
+            assert_eq!(found, Some(expected.to_string()));
+        });
     }
 }

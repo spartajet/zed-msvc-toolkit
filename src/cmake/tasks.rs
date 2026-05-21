@@ -64,12 +64,25 @@ pub fn generate_tasks_json(options: &TaskOptions) -> ToolkitResult<String> {
     serde_json::to_string_pretty(&tasks).map_err(|error| ToolkitError::IoMessage(error.to_string()))
 }
 
+/// 根据 CLion 风格返回构建目录名
+fn build_dir_for_type(build_type: &str) -> String {
+    let suffix = match build_type {
+        "Debug" => "debug",
+        "Release" => "release",
+        "RelWithDebInfo" => "relwithdebinfo",
+        "MinSizeRel" => "minsizerel",
+        _ => &build_type.to_lowercase(),
+    };
+    format!("cmake-build-{}", suffix)
+}
+
 /// 默认任务配置（Debug 构建）。
 impl Default for TaskOptions {
     fn default() -> Self {
+        let build_type = "Debug";
         Self {
-            build_dir: "build".to_string(),
-            build_type: "Debug".to_string(),
+            build_dir: build_dir_for_type(build_type),
+            build_type: build_type.to_string(),
             vs_dev_cmd: None,
             targets: Vec::new(),
         }
@@ -204,7 +217,7 @@ mod tests {
     #[test]
     fn custom_build_dir_and_type() {
         let options = TaskOptions {
-            build_dir: "cmake-build".to_string(),
+            build_dir: "my-custom-build".to_string(),
             build_type: "Release".to_string(),
             vs_dev_cmd: None,
             targets: Vec::new(),
@@ -215,14 +228,14 @@ mod tests {
         assert_eq!(parsed[0]["label"], "CMake: Configure (Release)");
         assert_eq!(parsed[1]["label"], "CMake: Build (Release)");
 
-        // 验证构建目录
+        // 验证自定义构建目录
         let build_arg = parsed[0]["args"]
             .as_array()
             .unwrap()
             .iter()
             .find(|arg| {
                 arg.as_str()
-                    .map(|s| s.contains("cmake-build"))
+                    .map(|s| s.contains("my-custom-build"))
                     .unwrap_or(false)
             })
             .unwrap();
@@ -230,8 +243,23 @@ mod tests {
             build_arg
                 .as_str()
                 .unwrap()
-                .contains("%ZED_WORKTREE_ROOT%\\cmake-build")
+                .contains("%ZED_WORKTREE_ROOT%\\my-custom-build")
         );
+    }
+
+    #[test]
+    fn default_uses_clion_style_build_dir() {
+        let options = TaskOptions::default();
+        assert_eq!(options.build_dir, "cmake-build-debug");
+        assert_eq!(options.build_type, "Debug");
+    }
+
+    #[test]
+    fn build_dir_for_type_maps_all_cmake_build_types() {
+        assert_eq!(build_dir_for_type("Debug"), "cmake-build-debug");
+        assert_eq!(build_dir_for_type("Release"), "cmake-build-release");
+        assert_eq!(build_dir_for_type("RelWithDebInfo"), "cmake-build-relwithdebinfo");
+        assert_eq!(build_dir_for_type("MinSizeRel"), "cmake-build-minsizerel");
     }
 
     #[test]
