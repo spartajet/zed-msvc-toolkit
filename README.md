@@ -6,17 +6,27 @@ MSVC and clangd assistant for Windows C++ CMake projects in Zed.
 
 ### Features
 
-- **V0.1**: MSVC toolchain detection (vswhere.exe, MSVC v143+, Windows SDK)
+- **V0.1**: MSVC toolchain detection (Visual Studio 2022+, MSVC v143+, Windows SDK)
 - **V0.2**: CMake `compile_commands.json` auto-detection
 - **V0.3**: CMake command generation infrastructure
-- **V0.4**: `.zed/tasks.json` generation for CMake operations
-- **V0.5**: neocmakelsp integration for CMake language support (LSP + syntax highlighting)
+- **V0.4**: `.zed/tasks.json` auto-generation with CMake tasks
+- **V0.5**: neocmakelsp integration for CMake language support
 
 ## Documentation
 
 - **[Usage Guide (docs/USAGE.md)](docs/USAGE.md)** - Installation, configuration, and usage guide
 - **[Testing Guide (docs/TESTING.md)](docs/TESTING.md)** - Unit and integration testing instructions
 - **[中文文档 (docs/zh-CN/)](docs/zh-CN/)** - Chinese documentation
+
+## What This Extension Does
+
+When you open a C/C++ file in a CMake project, this extension automatically:
+
+1. **Detects MSVC environment** - Finds Visual Studio 2022+, MSVC toolchain, and Windows SDK paths
+2. **Generates `.clangd` configuration** - Creates proper MSVC include paths for clangd
+3. **Detects compile database** - Finds `compile_commands.json` for accurate code analysis
+4. **Generates CMake tasks** - Creates `.zed/tasks.json` with configure, build, and run tasks
+5. **Enables CMake LSP** - Downloads and configures neocmakelsp for `CMakeLists.txt` support
 
 ## Quick Start
 
@@ -33,64 +43,61 @@ cp target/wasm32-unknown-unknown/release/zed_msvc_toolkit.wasm "$USERPROFILE/.ze
 cp extension.toml "$USERPROFILE/.zed/extensions/zed-msvc-toolkit/"
 ```
 
-### CMake Tasks
+### Using the Extension
 
-Copy the task template to your workspace:
+1. Open a CMake project (containing `CMakeLists.txt`) in Zed
+2. Open any `.c` or `.cpp` file
+3. The extension automatically:
+   - Configures clangd with MSVC include paths
+   - Generates `.zed/tasks.json` with CMake tasks
+   - Enables CMake language support via neocmakelsp
 
-```bash
-cp docs/zed-tasks-example.json .zed/tasks.json
-```
-
-Then run tasks via `Ctrl+Shift+T` (Task: Run).
+4. Run tasks via `Ctrl+Shift+T`:
+   - `CMake: Configure (Debug)`
+   - `CMake: Build (Debug)`
+   - `CMake: Build Target: <target>`
+   - `CMake: Run: <target>`
 
 ### CMake Language Support
 
-The extension includes [neocmakelsp](https://github.com/neocmakelsp/neocmakelsp) for CMake language support (`CMakeLists.txt` files).
+The extension includes [neocmakelsp](https://github.com/neocmakelsp/neocmakelsp) for CMake language support.
 
 **Installation:**
-- If `neocmakelsp` is available in `PATH`, the extension uses it directly.
-- Otherwise, the extension downloads the latest matching release asset from GitHub:
-  `neocmakelsp/neocmakelsp`.
-- You can still install it yourself if you prefer:
-  ```bash
-  cargo install neocmakelsp
-  ```
+- If `neocmakelsp` is in `PATH`, it's used directly
+- Otherwise, the extension downloads the latest release from GitHub automatically
 
 **Configuration:**
 
-neocmakelsp can be configured in two layers:
+neocmakelsp can be configured via `.zed/settings.json`:
 
-1. **Project-level** (`.neocmake.toml` in project root, read by neocmakelsp itself):
-   ```toml
-   [format]
-   enable = true
+```json
+{
+  "lsp": {
+    "msvc-cmake-neocmake": {
+      "format": { "enable": false },
+      "lint": { "enable": true }
+    }
+  }
+}
+```
 
-   [lint]
-   enable = true
-
-   scan_cmake_in_package = true
-   semantic_token = false
-   ```
-
-2. **Zed initialization options** (`.zed/settings.json`, read by this extension):
-   ```json
-   {
-     "lsp": {
-       "msvc-cmake-neocmake": {
-         "format": { "enable": false },
-         "lint": { "enable": true }
-       }
-     }
-   }
-   ```
+For project-level configuration, create `.neocmake.toml` in your project root (read by neocmakelsp itself).
 
 ## Requirements
 
-- Windows 11
+- Windows 10 or 11
 - Visual Studio 2022+ with "Desktop development with C++" workload
 - clangd (from LLVM) in PATH
 - CMake (optional, for tasks) in PATH
 - CMake project with `CMakeLists.txt`
+
+## Build Directory Naming
+
+The extension uses CLion-style build directories:
+- `cmake-build-debug/` for Debug builds
+- `cmake-build-release/` for Release builds
+- `cmake-build-relwithdebinfo/` for RelWithDebInfo builds
+- `cmake-build-minsizerel/` for MinSizeRel builds
 
 ## License
 
